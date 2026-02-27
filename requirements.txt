@@ -1,5 +1,5 @@
 streamlit
 groq
-sentence-transformers
+rank_bm25
 streamlit-option-menu
 numpy
