@@ -4,7 +4,8 @@ import json
 import numpy as np
 import os
 from groq import Groq
-from sentence_transformers import SentenceTransformer
+from rank_bm25 import BM25Okapi
+import string
 # THƯ VIỆN MỚI ĐỂ TẠO MENU ICON CHUYÊN NGHIỆP
 from streamlit_option_menu import option_menu
 
@@ -119,44 +120,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
-# ================== 3. LOAD DATABASE & VECTOR ==================
-@st.cache_resource
-def load_embedder(): return SentenceTransformer('keepitreal/vietnamese-sbert')
-
-
-embedder = load_embedder()
-
-
+# ================== 3. LOAD DATABASE & TÌM KIẾM TỐC ĐỘ CAO (BM25) ==================
 @st.cache_data
 def load_laws():
     try:
-        with open("legal_data.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return []
-
+        with open("legal_data.json", "r", encoding="utf-8") as f: return json.load(f)
+    except: return []
 
 laws = load_laws()
 
+# Hàm băm nhỏ văn bản để tìm kiếm siêu tốc
+def tokenize(text):
+    text = text.lower()
+    for p in string.punctuation:
+        text = text.replace(p, ' ')
+    return text.split()
 
 @st.cache_resource
-def load_embeddings(_laws):
+def load_bm25_index(_laws):
     if not _laws: return None
-    law_texts = [item.get("content", "") for item in _laws]
-    return embedder.encode(law_texts)
+    # Băm nhỏ toàn bộ sách luật
+    corpus = [tokenize(item.get("content", "") + " " + item.get("title", "")) for item in _laws]
+    return BM25Okapi(corpus)
 
+bm25_index = load_bm25_index(laws)
 
-law_embeddings = load_embeddings(laws)
-
-
-def retrieve_law_vector(query, top_k=3):
-    if law_embeddings is None: return []
-    query_embedding = embedder.encode([query])[0]
-    scores = [(np.dot(query_embedding, le) / (np.linalg.norm(query_embedding) * np.linalg.norm(le)), idx) for idx, le in
-              enumerate(law_embeddings)]
-    scores.sort(reverse=True)
-    return [laws[idx] for score, idx in scores[:top_k]]
+def retrieve_law_vector(query, top_k=2): # Giữ nguyên tên hàm để các phần dưới không bị lỗi
+    if bm25_index is None: return []
+    tokenized_query = tokenize(query)
+    # Chấm điểm độ liên quan của từng luật với câu hỏi
+    scores = bm25_index.get_scores(tokenized_query)
+    # Lấy ra các đoạn luật có điểm cao nhất
+    top_n_indices = np.argsort(scores)[::-1][:top_k]
+    
+    # Chỉ lấy những luật thực sự có chứa từ khóa (điểm > 0)
+    return [laws[i] for i in top_n_indices if scores[i] > 0]
 
 
 # ================== 4. SIDEBAR: GEMINI STYLE ==================
@@ -314,4 +312,5 @@ if current_messages and current_messages[-1]["role"] == "user":
 
         current_messages.append(
             {"role": "assistant", "content": full_res, "retrieved": retrieved, "revenue": revenue_val})
+
     st.rerun()
