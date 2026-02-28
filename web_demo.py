@@ -76,7 +76,7 @@ current_messages = st.session_state.conversations[current_chat_id]
 with st.sidebar:
     st.markdown("### LigoAI Legal")
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    if st.button("➕ Cuộc hội thoại mới", use_container_width=True):
+if st.button("➕ Cuộc hội thoại mới", use_container_width=True):
         new_id = str(uuid.uuid4())
         st.session_state.conversations[new_id] = []
         st.session_state.current_chat = new_id
@@ -186,3 +186,4 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
             {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
     # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
