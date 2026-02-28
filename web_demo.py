@@ -8,6 +8,7 @@ from groq import Groq
 from docx import Document
 from io import BytesIO
 from supabase import create_client, Client
+import pandas as pd
 
 # ================== 1. KẾT NỐI ĐÁM MÂY ==================
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -112,23 +113,41 @@ with st.sidebar:
                 st.download_button("📥 Tải file Word", bio.getvalue(), "Dang_Ky_HKD.docx", type="primary")
             except:
                 st.error("Chưa đủ thông tin để tạo đơn.")
-   # --- BẮT ĐẦU CHÈN TỪ ĐÂY (Thẳng hàng với st.markdown ở trên) ---
+ # --- BẮT ĐẦU CHÈN TỪ ĐÂY (Thẳng hàng với st.markdown ở trên) ---
     st.markdown("---")
-    with st.expander("🛠️ Dành cho Ban giám khảo"):
-        if st.button("Tải dữ liệu từ Supabase", use_container_width=True):
+    with st.expander("🛠️ Dành cho Ban giám khảo (Dữ liệu Admin)"):
+        # Nút bấm để kéo dữ liệu về và lưu vào bộ nhớ
+        if st.button("🔄 Tải dữ liệu mới nhất từ Supabase", use_container_width=True):
             if supabase:
                 try:
                     response = supabase.table("chat_history").select("*").execute()
-                    if response.data:
-                        st.dataframe(response.data, use_container_width=True)
-                        st.caption(f"Tổng cộng: {len(response.data)} lượt truy vấn.")
-                    else:
-                        st.info("Chưa có dữ liệu nào.")
+                    st.session_state.admin_data = response.data
                 except Exception as e:
-                    st.error("Lỗi kết nối máy chủ.")
+                    st.error(f"Lỗi kéo dữ liệu: {e}")
             else:
                 st.error("Chưa kết nối Supabase.")
-    # --- KẾT THÚC CHÈN ---
+
+        # Nếu đã có dữ liệu trong bộ nhớ thì hiển thị Bảng và Nút Tải
+        if "admin_data" in st.session_state and st.session_state.admin_data:
+            import pandas as pd
+            # Biến dữ liệu thành bảng chuyên nghiệp
+            df = pd.DataFrame(st.session_state.admin_data)
+            st.dataframe(df, use_container_width=True)
+            st.caption(f"Tổng cộng: {len(df)} lượt truy vấn.")
+            
+            # Tạo file CSV để xuất
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Xuất bảng ra file (.csv)",
+                data=csv_data,
+                file_name="LigoAI_LichSuChat.csv",
+                mime="text/csv",
+                type="primary",
+                use_container_width=True
+            )
+        elif "admin_data" in st.session_state and not st.session_state.admin_data:
+            st.info("Bảng trên Supabase hiện đang trống.")
+    # --- KẾT THÚC CHÈN ---# --- KẾT THÚC CHÈN ---
 
 
 # --- KHU VỰC CHAT CHÍNH ---
@@ -203,6 +222,7 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
 
 
