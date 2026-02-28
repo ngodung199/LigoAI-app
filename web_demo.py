@@ -129,7 +129,7 @@ with st.sidebar:
 
         # Nếu đã có dữ liệu trong bộ nhớ thì hiển thị Bảng và Nút Tải
        if "admin_data" in st.session_state and st.session_state.admin_data:
-           import pandas as pd
+            import pandas as pd
             # Biến dữ liệu thành bảng chuyên nghiệp
             df = pd.DataFrame(st.session_state.admin_data)
             st.dataframe(df, use_container_width=True)
@@ -222,6 +222,7 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
 
 
