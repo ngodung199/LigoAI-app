@@ -115,21 +115,21 @@ with st.sidebar:
                 st.error("Chưa đủ thông tin để tạo đơn.")
  # --- BẮT ĐẦU CHÈN TỪ ĐÂY (Thẳng hàng với st.markdown ở trên) ---
  st.markdown("---")
-    with st.expander("🛠️ Dành cho Ban giám khảo (Dữ liệu Admin)"):
+   with st.expander("🛠️ Dành cho Ban giám khảo (Dữ liệu Admin)"):
         # Nút bấm để kéo dữ liệu về và lưu vào bộ nhớ
-        if st.button("🔄 Tải dữ liệu mới nhất từ Supabase", use_container_width=True):
-            if supabase:
-                try:
+       if st.button("🔄 Tải dữ liệu mới nhất từ Supabase", use_container_width=True):
+           if supabase:
+               try:
                     response = supabase.table("chat_history").select("*").execute()
                     st.session_state.admin_data = response.data
-                except Exception as e:
+               except Exception as e:
                     st.error(f"Lỗi kéo dữ liệu: {e}")
-            else:
+           else:
                 st.error("Chưa kết nối Supabase.")
 
         # Nếu đã có dữ liệu trong bộ nhớ thì hiển thị Bảng và Nút Tải
-        if "admin_data" in st.session_state and st.session_state.admin_data:
-            import pandas as pd
+       if "admin_data" in st.session_state and st.session_state.admin_data:
+           import pandas as pd
             # Biến dữ liệu thành bảng chuyên nghiệp
             df = pd.DataFrame(st.session_state.admin_data)
             st.dataframe(df, use_container_width=True)
@@ -145,7 +145,7 @@ with st.sidebar:
                 type="primary",
                 use_container_width=True
             )
-        elif "admin_data" in st.session_state and not st.session_state.admin_data:
+       elif "admin_data" in st.session_state and not st.session_state.admin_data:
             st.info("Bảng trên Supabase hiện đang trống.")
     # --- KẾT THÚC CHÈN ---# --- KẾT THÚC CHÈN ---
 
@@ -222,6 +222,7 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
 
 
