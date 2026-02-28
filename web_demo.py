@@ -15,31 +15,30 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 @st.cache_resource
 def init_supabase():
-try:
+ try:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
-except:
+ except:
     return None
-
-
+     
 supabase = init_supabase()
 
 
 # ================== 2. BỘ MÁY TÌM KIẾM TỪ KHÓA (BM25) ==================
 @st.cache_data
 def load_laws():
-try:
+ try:
     with open("legal_data.json", "r", encoding="utf-8") as f:
         return json.load(f)
-except:
+ except:
     return []
 
 
 def tokenize(text):
-if not text: return []
-text = text.lower()
-for p in string.punctuation:
+ if not text: return []
+ text = text.lower()
+ for p in string.punctuation:
     text = text.replace(p, ' ')
-return text.split()
+ return text.split()
 
 
 @st.cache_resource
@@ -54,10 +53,10 @@ bm25_index = get_bm25_index(laws)
 
 
 def retrieve_law_bm25(query, top_k=2):
-if bm25_index is None or not laws: return []
-scores = bm25_index.get_scores(tokenize(query))
-top_indices = np.argsort(scores)[::-1][:top_k]
-return [laws[i] for i in top_indices if scores[i] > 0]
+ if bm25_index is None or not laws: return []
+ scores = bm25_index.get_scores(tokenize(query))
+ top_indices = np.argsort(scores)[::-1][:top_k]
+ return [laws[i] for i in top_indices if scores[i] > 0]
 
 
 # ================== 3. GIAO DIỆN CHUYÊN NGHIỆP ==================
@@ -65,26 +64,26 @@ st.set_page_config(page_title="LigoAI | Tư vấn Pháp lý", layout="wide")
 st.markdown("""<style>.stButton button { border-radius: 8px; }</style>""", unsafe_allow_html=True)
 
 if "conversations" not in st.session_state:
-uid = str(uuid.uuid4())
-st.session_state.conversations = {uid: []}
-st.session_state.current_chat = uid
+ uid = str(uuid.uuid4())
+ st.session_state.conversations = {uid: []}
+ st.session_state.current_chat = uid
 
 current_chat_id = st.session_state.current_chat
 current_messages = st.session_state.conversations[current_chat_id]
 
 # --- SIDEBAR QUẢN LÝ ---
 with st.sidebar:
-st.markdown("### LigoAI Legal")
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-if st.button("➕ Cuộc hội thoại mới", use_container_width=True):
+ st.markdown("### LigoAI Legal")
+ GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+ if st.button("➕ Cuộc hội thoại mới", use_container_width=True):
     new_id = str(uuid.uuid4())
     st.session_state.conversations[new_id] = []
     st.session_state.current_chat = new_id
     st.rerun()
 
-st.markdown("---")
-st.markdown("### Tiện ích văn bản")
-if st.button("Trích xuất Giấy đăng ký HKD", use_container_width=True):
+ st.markdown("---")
+ st.markdown("### Tiện ích văn bản")
+ if st.button("Trích xuất Giấy đăng ký HKD", use_container_width=True):
     if len(current_messages) < 2:
         st.warning("Hãy trò chuyện để cung cấp thông tin trước.")
     else:
@@ -120,14 +119,14 @@ st.markdown("<h3 style='text-align: center;'>Xin chào, tôi là LigoAI</h3>", u
 suggestion_clicked = None
 c1, c2 = st.columns(2)
 with c1:
-if st.button("Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?",
+  if st.button("Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?",
              use_container_width=True): suggestion_clicked = "Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?"
 with c2:
-if st.button("Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?",
+  if st.button("Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?",
              use_container_width=True): suggestion_clicked = "Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?"
 
 for msg in current_messages:
-with st.chat_message(msg["role"]):
+  with st.chat_message(msg["role"]):
     st.markdown(msg["content"])
     if msg["role"] == "assistant" and msg.get("retrieved"):
         with st.expander("📑 Căn cứ pháp lý"):
@@ -141,19 +140,19 @@ prompt = user_input or suggestion_clicked
 if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
 
 # 1. Đẩy dữ liệu lên Supabase
-if supabase:
+ if supabase:
     try:
         supabase.table("chat_history").insert({"session_id": current_chat_id, "user_query": prompt}).execute()
     except:
         pass  # Lỗi mạng bỏ qua, web vẫn chạy tiếp
 
 # 2. Lưu và hiển thị câu hỏi
-st.session_state.conversations[current_chat_id].append({"role": "user", "content": prompt})
-with st.chat_message("user"):
+ st.session_state.conversations[current_chat_id].append({"role": "user", "content": prompt})
+ with st.chat_message("user"):
     st.markdown(prompt)
 
 # 3. AI suy nghĩ và phản hồi
-with st.chat_message("assistant"):
+ with st.chat_message("assistant"):
     msg_placeholder = st.empty()
     full_res = ""
     retrieved = retrieve_law_bm25(prompt)
@@ -186,3 +185,4 @@ with st.chat_message("assistant"):
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
