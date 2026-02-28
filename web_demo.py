@@ -43,9 +43,9 @@ def tokenize(text):
 
 @st.cache_resource
 def get_bm25_index(_laws):
-if not _laws: return None
-corpus = [tokenize(item.get("content", "") + " " + item.get("title", "")) for item in _laws]
-return BM25Okapi(corpus)
+  if not _laws: return None
+  corpus = [tokenize(item.get("content", "") + " " + item.get("title", "")) for item in _laws]
+  return BM25Okapi(corpus)
 
 
 laws = load_laws()
@@ -185,4 +185,5 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
