@@ -1,5 +1,5 @@
 streamlit
-groq
 rank_bm25
-streamlit-option-menu
-numpy
+groq
+python-docx
+supabase
