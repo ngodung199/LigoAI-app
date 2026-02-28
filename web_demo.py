@@ -80,6 +80,23 @@ with st.sidebar:
     st.session_state.conversations[new_id] = []
     st.session_state.current_chat = new_id
     st.rerun()
+  # Chèn đoạn này vào vị trí cuối cùng trong khối "with st.sidebar:"
+    st.markdown("---")
+    with st.expander("🛠️ Dành cho Ban giám khảo (Dữ liệu Admin)"):
+        if st.button("Tải dữ liệu từ Supabase", use_container_width=True):
+            try:
+                # Kéo toàn bộ dữ liệu từ bảng chat_history về
+                response = supabase.table("chat_history").select("*").execute()
+                data = response.data
+                
+                if data:
+                    # Hiển thị dưới dạng bảng cực kỳ chuyên nghiệp
+                    st.dataframe(data, use_container_width=True)
+                    st.caption(f"Tổng cộng: {len(data)} lượt truy vấn.")
+                else:
+                    st.info("Chưa có dữ liệu nào.")
+            except Exception as e:
+                st.error("Không thể kết nối máy chủ.")
 
  st.markdown("---")
  st.markdown("### Tiện ích văn bản")
@@ -185,5 +202,6 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
 
