@@ -1,316 +1,188 @@
 import streamlit as st
-import uuid
 import json
+import uuid
 import numpy as np
-import os
-from groq import Groq
-from rank_bm25 import BM25Okapi
 import string
-# THƯ VIỆN MỚI ĐỂ TẠO MENU ICON CHUYÊN NGHIỆP
-from streamlit_option_menu import option_menu
+from rank_bm25 import BM25Okapi
+from groq import Groq
+from docx import Document
+from io import BytesIO
+from supabase import create_client, Client
 
-# ================== 1. CẤU HÌNH API & TRANG ==================
-# ĐIỀN API KEY CỦA BẠN VÀO ĐÂY
-os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-client = Groq()
+# ================== 1. KẾT NỐI ĐÁM MÂY ==================
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-st.set_page_config(page_title="LigoAI - Trợ Lý Pháp Lý", layout="wide", page_icon="✨")
+@st.cache_resource
+def init_supabase():
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except:
+        return None
 
-# ================== 2. SIÊU CẤP CSS (GEMINI DARK MODE CLONE) ==================
-st.markdown("""
-    <style>
-    /* Import Font chữ hiện đại của Google */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-    /* === TỔNG THỂ === */
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif !important;
-        color: #E3E3E3 !important; /* Màu chữ trắng xám của Gemini */
-    }
-    /* Nền chính tối màu #131314 */
-    .stApp {
-        background-color: #131314;
-    }
+supabase = init_supabase()
 
-    /* === SIDEBAR (THANH BÊN) === */
-    [data-testid="stSidebar"] {
-        background-color: #1E1F20 !important; /* Màu xám tối đặc trưng */
-        border-right: 1px solid #333538 !important;
-        padding-top: 20px;
-    }
-    /* Ẩn nút đóng mở sidebar mặc định cho gọn */
-    [data-testid="collapsedControl"] {display: none;}
 
-    /* CSS cho menu option-menu (New chat, My stuff) */
-    .nav-link {
-        border-radius: 8px !important;
-        margin-bottom: 5px !important;
-        font-weight: 500 !important;
-        color: #E3E3E3 !important;
-    }
-    .nav-link:hover {
-        background-color: #333538 !important;
-    }
-    .nav-link-selected {
-        background-color: #282A2C !important;
-        color: #A8C7FA !important; /* Màu xanh sáng khi chọn */
-    }
-
-    /* CSS cho nút Lịch sử chat và Gợi ý */
-    div[data-testid="stButton"] button {
-        text-align: left;
-        height: auto;
-        white-space: normal;
-        padding: 10px 14px;
-        border-radius: 8px; /* Bo góc nhẹ */
-        border: none;
-        background-color: transparent; /* Nền trong suốt */
-        color: #C4C7C5; /* Chữ màu xám nhạt */
-        transition: all 0.1s ease-in-out;
-        font-size: 14px;
-        margin-bottom: 2px;
-    }
-    /* Hiệu ứng hover mượt mà */
-    div[data-testid="stButton"] button:hover {
-        background-color: #333538;
-        color: #E3E3E3;
-    }
-    /* Nút gợi ý ở màn hình chính thì cho có viền nhẹ */
-    .suggestion-btn div[data-testid="stButton"] button {
-         border: 1px solid #444746;
-         background-color: #1E1F20;
-         padding: 15px;
-         border-radius: 12px;
-    }
-    .suggestion-btn div[data-testid="stButton"] button:hover {
-         border-color: #8AB4F8;
-         background-color: #282A2C;
-    }
-
-    /* === PHẦN CHAT CHÍNH === */
-    /* Tiêu đề chào mừng */
-    .welcome-text {
-        font-size: 3rem; font-weight: 600;
-        background: linear-gradient(90deg, #8AB4F8, #A8C7FA);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 10px;
-    }
-    .sub-welcome { font-size: 1.5rem; color: #8e918f; font-weight: 500;}
-
-    /* Ô nhập liệu chat */
-    .stChatInput textarea {
-        background-color: #1E1F20 !important;
-        border: 1px solid #444746 !important;
-        color: #E3E3E3 !important;
-        border-radius: 24px !important; /* Bo tròn hẳn như Gemini */
-        padding: 12px 20px !important;
-    }
-    .stChatInput textarea:focus {
-        border-color: #8AB4F8 !important;
-        box-shadow: none !important;
-    }
-
-    /* Các khung hiển thị luật, rủi ro */
-    div[data-testid="stContainer"] {border: none;}
-    div[data-testid="stMetric"] {background-color: #1E1F20; border: 1px solid #333538; border-radius: 12px;}
-    .law-quote {background-color: #282A2C; border-left: 3px solid #8AB4F8; padding: 15px; border-radius: 8px; font-style: italic; margin-top:10px; font-size: 14px;}
-
-    /* Ẩn các thành phần thừa */
-    #MainMenu, header, footer {visibility: hidden;}
-    </style>
-""", unsafe_allow_html=True)
-
-# ================== 3. LOAD DATABASE & TÌM KIẾM TỐC ĐỘ CAO (BM25) ==================
+# ================== 2. BỘ MÁY TÌM KIẾM TỪ KHÓA (BM25) ==================
 @st.cache_data
 def load_laws():
     try:
-        with open("legal_data.json", "r", encoding="utf-8") as f: return json.load(f)
-    except: return []
+        with open("legal_data.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
 
-laws = load_laws()
 
-# Hàm băm nhỏ văn bản để tìm kiếm siêu tốc
 def tokenize(text):
+    if not text: return []
     text = text.lower()
     for p in string.punctuation:
         text = text.replace(p, ' ')
     return text.split()
 
+
 @st.cache_resource
-def load_bm25_index(_laws):
+def get_bm25_index(_laws):
     if not _laws: return None
-    # Băm nhỏ toàn bộ sách luật
     corpus = [tokenize(item.get("content", "") + " " + item.get("title", "")) for item in _laws]
     return BM25Okapi(corpus)
 
-bm25_index = load_bm25_index(laws)
 
-def retrieve_law_vector(query, top_k=2): # Giữ nguyên tên hàm để các phần dưới không bị lỗi
-    if bm25_index is None: return []
-    tokenized_query = tokenize(query)
-    # Chấm điểm độ liên quan của từng luật với câu hỏi
-    scores = bm25_index.get_scores(tokenized_query)
-    # Lấy ra các đoạn luật có điểm cao nhất
-    top_n_indices = np.argsort(scores)[::-1][:top_k]
-    
-    # Chỉ lấy những luật thực sự có chứa từ khóa (điểm > 0)
-    return [laws[i] for i in top_n_indices if scores[i] > 0]
+laws = load_laws()
+bm25_index = get_bm25_index(laws)
 
 
-# ================== 4. SIDEBAR: GEMINI STYLE ==================
-if "conversations" not in st.session_state: st.session_state.conversations = {}
-if "current_chat" not in st.session_state:
-    new_id = str(uuid.uuid4())
-    st.session_state.conversations[new_id] = []
-    st.session_state.current_chat = new_id
+def retrieve_law_bm25(query, top_k=2):
+    if bm25_index is None or not laws: return []
+    scores = bm25_index.get_scores(tokenize(query))
+    top_indices = np.argsort(scores)[::-1][:top_k]
+    return [laws[i] for i in top_indices if scores[i] > 0]
 
+
+# ================== 3. GIAO DIỆN CHUYÊN NGHIỆP ==================
+st.set_page_config(page_title="LigoAI | Tư vấn Pháp lý", layout="wide")
+st.markdown("""<style>.stButton button { border-radius: 8px; }</style>""", unsafe_allow_html=True)
+
+if "conversations" not in st.session_state:
+    uid = str(uuid.uuid4())
+    st.session_state.conversations = {uid: []}
+    st.session_state.current_chat = uid
+
+current_chat_id = st.session_state.current_chat
+current_messages = st.session_state.conversations[current_chat_id]
+
+# --- SIDEBAR QUẢN LÝ ---
 with st.sidebar:
-    # MENU ĐIỀU HƯỚNG CHÍNH VỚI ICON CHUYÊN NGHIỆP (KHÔNG DÙNG EMOJI)
-    selected_nav = option_menu(
-        menu_title=None,
-        options=["New chat", "My stuff"],
-        icons=["plus-circle", "collection"],  # Sử dụng Bootstrap Icons
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#8AB4F8", "font-size": "18px"},
-            "nav-link": {"font-size": "15px", "text-align": "left", "margin": "0px", "--hover-color": "#333538"},
-            "nav-link-selected": {"background-color": "#282A2C"},
-        }
-    )
+    st.markdown("### LigoAI Legal")
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    if st.button("➕ Cuộc hội thoại mới", use_container_width=True):
+        new_id = str(uuid.uuid4())
+        st.session_state.conversations[new_id] = []
+        st.session_state.current_chat = new_id
+        st.rerun()
 
-    if selected_nav == "New chat":
-        # Logic tạo chat mới (Chỉ chạy khi người dùng thực sự cần reset)
-        if st.session_state.conversations[st.session_state.current_chat]:
-            new_id = str(uuid.uuid4())
-            st.session_state.conversations[new_id] = []
-            st.session_state.current_chat = new_id
-            st.rerun()
-
-    st.markdown("---")  # Đường kẻ ngang mờ
-    st.markdown("<p style='font-size: 14px; font-weight: 600; color: #E3E3E3; margin-bottom: 10px;'>Recents</p>",
-                unsafe_allow_html=True)
-
-    # DANH SÁCH LỊCH SỬ CHAT (Nút bấm text gọn gàng)
-    chat_ids = list(st.session_state.conversations.keys())
-    # Đảo ngược để hiện cái mới nhất lên đầu
-    for chat_id in reversed(chat_ids):
-        messages = st.session_state.conversations[chat_id]
-        # Lấy 30 ký tự đầu của câu hỏi đầu tiên làm tiêu đề
-        title = messages[0]["content"][:30] + "..." if messages else "Cuộc hội thoại mới"
-
-        # Nút bấm chuyển đổi lịch sử
-        if st.button(title, key=chat_id, use_container_width=True):
-            st.session_state.current_chat = chat_id
-            st.rerun()
-
-    # Phần cài đặt mô phỏng
     st.markdown("---")
-    with st.expander("⚙️ Settings & parameters"):
-        biz_type = st.selectbox("Ngành nghề:", ["Bán lẻ, Tạp hóa", "F&B (Nhà hàng)", "Dịch vụ", "Sản xuất"])
-        revenue_val = st.slider("Doanh thu (Triệu/năm):", 0, 2000, 150)
+    st.markdown("### Tiện ích văn bản")
+    if st.button("Trích xuất Giấy đăng ký HKD", use_container_width=True):
+        if len(current_messages) < 2:
+            st.warning("Hãy trò chuyện để cung cấp thông tin trước.")
+        else:
+            with st.spinner("Đang soạn thảo file Word..."):
+                try:
+                    client_tool = Groq(api_key=GROQ_API_KEY)
+                    chat_text = "\n".join([f"{m['role']}: {m['content']}" for m in current_messages])
+                    res = client_tool.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user",
+                                   "content": f"Trích xuất JSON (TEN_KHACH_HANG, DIA_CHI, NGANH_NGHE, VON_KINH_DOANH) từ: {chat_text}"}],
+                        temperature=0.1
+                    )
+                    raw_text = res.choices[0].message.content
+                    data = json.loads(raw_text[raw_text.find('{'):raw_text.rfind('}') + 1])
 
-# ================== 5. GIAO DIỆN CHÍNH & CHAT ==================
-current_messages = st.session_state.conversations[st.session_state.current_chat]
+                    doc = Document()
+                    doc.add_heading('GIẤY ĐỀ NGHỊ ĐĂNG KÝ HỘ KINH DOANH', 0)
+                    doc.add_paragraph(f"Tên chủ hộ: {data.get('TEN_KHACH_HANG', '................')}")
+                    doc.add_paragraph(f"Địa chỉ: {data.get('DIA_CHI', '................')}")
+                    doc.add_paragraph(f"Ngành nghề: {data.get('NGANH_NGHE', '................')}")
+                    doc.add_paragraph(f"Vốn: {data.get('VON_KINH_DOANH', '................')}")
+
+                    bio = BytesIO()
+                    doc.save(bio)
+                    st.download_button("📥 Tải file Word", bio.getvalue(), "Dang_Ky_HKD.docx", type="primary")
+                except:
+                    st.error("Chưa đủ thông tin để tạo đơn.")
+
+# --- KHU VỰC CHAT CHÍNH ---
+st.markdown("<h3 style='text-align: center;'>Xin chào, tôi là LigoAI</h3>", unsafe_allow_html=True)
+
 suggestion_clicked = None
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?",
+                 use_container_width=True): suggestion_clicked = "Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?"
+with c2:
+    if st.button("Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?",
+                 use_container_width=True): suggestion_clicked = "Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?"
 
-# MÀN HÌNH CHÀO MỪNG (Khi chưa có tin nhắn)
-if not current_messages:
-    st.markdown('<div style="margin-top: 50px;"></div>', unsafe_allow_html=True)  # Khoảng trống
-    st.markdown('<p class="welcome-text">Xin chào, tôi là LigoAI</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-welcome">Tôi có thể giúp gì cho công việc kinh doanh của bạn hôm nay?</p>',
-                unsafe_allow_html=True)
-    st.markdown('<div style="margin-bottom: 50px;"></div>', unsafe_allow_html=True)
-
-    # Các nút gợi ý (Được bọc class để CSS làm đẹp riêng)
-    st.markdown('<div class="suggestion-btn">', unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🛒 Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?", use_container_width=True):
-            suggestion_clicked = "Mở tiệm tạp hóa doanh thu 150tr thì đóng thuế gì?"
-        if st.button("📜 Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?", use_container_width=True):
-            suggestion_clicked = "Thủ tục đăng ký hộ kinh doanh cần giấy tờ gì?"
-    with c2:
-        if st.button("💰 Doanh thu dưới 100 triệu có phải nộp thuế không?", use_container_width=True):
-            suggestion_clicked = "Doanh thu dưới 100 triệu có phải nộp thuế không?"
-        if st.button("⚠️ Mức phạt chậm nộp tờ khai thuế môn bài là bao nhiêu?", use_container_width=True):
-            suggestion_clicked = "Mức phạt chậm nộp tờ khai thuế môn bài là bao nhiêu?"
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# HIỂN THỊ LỊCH SỬ CHAT
 for msg in current_messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg["role"] == "assistant" and msg.get("retrieved"):
-            st.write("")
-            # Phần đánh giá rủi ro (Giữ nguyên logic cũ)
-            with st.container(border=True):
-                st.markdown("##### 📊 Đánh giá tuân thủ")
-                c_risk, c_rev = st.columns([1, 2])
-                with c_risk:
-                    if any(w in msg["content"].lower() for w in ["phạt", "cưỡng chế"]):
-                        st.error("⚠️ Rủi ro: CAO")
-                    else:
-                        st.success("✅ Rủi ro: THẤP")
-                with c_rev:
-                    st.info(f"Áp dụng mức doanh thu: {msg.get('revenue')} triệu/năm")
-
-            # Phần trích dẫn luật (Giao diện mới)
-            with st.expander("những căn cứ pháp lý liên quan"):
+            with st.expander("📑 Căn cứ pháp lý"):
                 for item in msg["retrieved"]:
-                    t = item.get("title", "Văn bản")
-                    c = item.get("content", "")
-                    st.markdown(f"**{t}**")
-                    st.markdown(f'<div class="law-quote">{c}</div>', unsafe_allow_html=True)
-
-# XỬ LÝ INPUT VÀ AI
-SYSTEM_PROMPT = """
-Bạn là LigoAI - Chuyên gia tư vấn THUẾ cho Hộ kinh doanh.
-Cấu trúc trả lời BẮT BUỘC (Dùng Markdown):
-1. 🎯 NHẬN ĐỊNH NGHĨA VỤ THUẾ: Kết luận ngay dựa trên input.
-2. 📖 CĂN CỨ & GIẢI THÍCH: Trích dẫn nguyên văn luật từ CONTEXT (trong ngoặc kép) rồi giải thích bình dân.
-3. 🛠️ HƯỚNG DẪN THỦ TỤC: Liệt kê các bước làm hồ sơ, nơi nộp, hạn nộp.
-4. 💡 CẢNH BÁO RỦI RO: Mức phạt cụ thể nếu vi phạm.
-"""
+                    st.markdown(f"**{item.get('title', '')}**\n*{item.get('content', '')}*")
 
 user_input = st.chat_input("Nhập vấn đề pháp lý của bạn tại đây...")
 prompt = user_input or suggestion_clicked
 
-if prompt:
-    current_messages.append({"role": "user", "content": prompt})
-    st.rerun()  # Rerun để hiển thị câu hỏi của user ngay lập tức
+# BỨC TƯỜNG LỬA: Chỉ chạy khi prompt có nội dung thật sự, chặn đứng chuỗi rỗng và chữ "None"
+if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
 
-# Logic gọi AI (Chạy sau khi rerun)
-if current_messages and current_messages[-1]["role"] == "user":
-    last_prompt = current_messages[-1]["content"]
+    # 1. Đẩy dữ liệu lên Supabase
+    if supabase:
+        try:
+            supabase.table("chat_history").insert({"session_id": current_chat_id, "user_query": prompt}).execute()
+        except:
+            pass  # Lỗi mạng bỏ qua, web vẫn chạy tiếp
+
+    # 2. Lưu và hiển thị câu hỏi
+    st.session_state.conversations[current_chat_id].append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # 3. AI suy nghĩ và phản hồi
     with st.chat_message("assistant"):
         msg_placeholder = st.empty()
         full_res = ""
-        retrieved = retrieve_law_vector(last_prompt)
+        retrieved = retrieve_law_bm25(prompt)
 
         if not retrieved:
-            full_res = "Vấn đề này nằm ngoài phạm vi dữ liệu Thuế & Thủ tục Hộ kinh doanh của LigoAI."
+            full_res = "LigoAI chưa tìm thấy quy định phù hợp trong hệ thống."
             msg_placeholder.markdown(full_res)
         else:
-            context = "\n".join([f"{i.get('title')}:\n{i.get('content')}" for i in retrieved])
-            rag_prompt = f"Lĩnh vực {biz_type}, doanh thu {revenue_val} triệu.\nCONTEXT:\n{context}\nUSER QUERY:\n{last_prompt}"
+            client = Groq(api_key=GROQ_API_KEY)
+            context = "\n".join([f"- {i['title']}: {i['content']}" for i in retrieved])
+            sys_prompt = "Bạn là trợ lý luật pháp chuyên nghiệp. Trả lời dựa trên ngữ cảnh được cung cấp."
+            user_msg = f"Ngữ cảnh:\n{context}\n\nCâu hỏi: {prompt}"
 
             try:
                 stream = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": rag_prompt}],
-                    stream=True, temperature=0.1
+                    messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_msg}],
+                    stream=True
                 )
                 for chunk in stream:
                     if chunk.choices[0].delta.content:
                         full_res += chunk.choices[0].delta.content
                         msg_placeholder.markdown(full_res + "▌")
                 msg_placeholder.markdown(full_res)
-            except Exception as e:
-                full_res = f"⚠️ Lỗi kết nối: {e}"
+            except:
+                full_res = "⚠️ Máy chủ AI đang bận."
                 msg_placeholder.markdown(full_res)
 
-        current_messages.append(
-            {"role": "assistant", "content": full_res, "retrieved": retrieved, "revenue": revenue_val})
+        st.session_state.conversations[current_chat_id].append(
+            {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
-    st.rerun()
+    # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
