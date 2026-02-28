@@ -114,7 +114,7 @@ with st.sidebar:
             except:
                 st.error("Chưa đủ thông tin để tạo đơn.")
  # --- BẮT ĐẦU CHÈN TỪ ĐÂY (Thẳng hàng với st.markdown ở trên) ---
-    st.markdown("---")
+  st.markdown("---")
     with st.expander("🛠️ Dành cho Ban giám khảo (Dữ liệu Admin)"):
         # Nút bấm để kéo dữ liệu về và lưu vào bộ nhớ
         if st.button("🔄 Tải dữ liệu mới nhất từ Supabase", use_container_width=True):
@@ -222,6 +222,7 @@ if prompt and str(prompt).strip() != "" and str(prompt).strip() != "None":
         {"role": "assistant", "content": full_res, "retrieved": retrieved})
 
 # ĐÃ XÓA LỆNH st.rerun() GÂY LỖI Ở ĐÂY
+
 
 
 
